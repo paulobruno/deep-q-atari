@@ -3,36 +3,48 @@
 
 from __future__ import division
 from __future__ import print_function
-import itertools as it
+
 from random import sample, randint, random
 from time import time, sleep
+from tqdm import trange
+
+import itertools as it
 import numpy as np
 import skimage.color, skimage.transform
 import tensorflow as tf
-from tqdm import trange
-import gym
 import os
 import errno
+import gym
 #from gym import wrappers
 
 
 # game parameters
-game_resolution = (70, 40)
+gym_game = 'Breakout-v0'
+game_resolution = (105, 80)
 img_channels = 1
-episodes_to_watch = 5
 
 load_model = False
-save_model = False
+save_model = True
+save_log = False
 skip_learning = False
-model_savefile = 'tf_model/model.ckpt'
-save_log = True
-log_savefile = 'tf_model/log.txt'
+
+log_savefile = 'log.txt'
+model_savefile = 'model.ckpt'
+
+if (gym_game == 'MsPacman-v0'):
+    save_path = 'model_mspacman/'
+elif (gym_game == 'Breakout-v0'):
+    save_path = 'model_breakout/'
+#elif (gym_game == 'MountainCar-v0'):
+#    save_path = 'model_mountain_car/'
+#elif (gym_game == 'CartPole-v0'):
+#    save_path = 'model_cart_pole/'
+else:
+    print('ERROR: wrong game.')
 
 # Q-learning settings
 learning_rate = 0.00025
 discount_factor = 0.99
-num_epochs = 3
-learning_steps_per_epoch = 700
 replay_memory_size = 10000
 
 # NN architecture
@@ -47,7 +59,10 @@ batch_size = 64
 dropout_keep_prob = 0.8
 
 # training regime
+num_epochs = 1
+learning_steps_per_epoch = 700
 test_episodes_per_epoch = 15
+episodes_to_watch = 5
 
 
 # ceil of a division, source: http://stackoverflow.com/questions/14822184/is-there-a-ceiling-equivalent-of-operator-in-python
@@ -121,24 +136,24 @@ def create_network(session, num_available_actions):
     target_q_ = tf.placeholder(tf.float32, [None, num_available_actions], name='TargetQ')
 
     # first convolutional layer
-    W_conv1 = weight_variable([conv_height, conv_width, img_channels, features_layer1]) # [5, 5, 1, 32]
-    b_conv1 = bias_variable([features_layer1]) # [32]
+    W_conv1 = weight_variable([conv_height, conv_width, img_channels, features_layer1])
+    b_conv1 = bias_variable([features_layer1])
 
     h_conv1 = tf.nn.relu(conv2d(s1_, W_conv1) + b_conv1)
     h_pool1 = max_pool_2x2(h_conv1)
 
     # second convolutional layer
-    W_conv2 = weight_variable([conv_height, conv_width, features_layer1, features_layer2]) # [5, 5, 32, 64]
-    b_conv2 = bias_variable([features_layer2]) # [64]
+    W_conv2 = weight_variable([conv_height, conv_width, features_layer1, features_layer2])
+    b_conv2 = bias_variable([features_layer2]) 
 
     h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
     h_pool2 = max_pool_2x2(h_conv2)
 
     # densely connected layer
-    W_fc1 = weight_variable([ceildiv(game_resolution[0],4)*ceildiv(game_resolution[1],4)*features_layer2, fc_num_outputs]) # [18*10*(64), 1024]
-    b_fc1 = bias_variable([fc_num_outputs]) # [1024]
+    W_fc1 = weight_variable([ceildiv(game_resolution[0],4)*ceildiv(game_resolution[1],4)*features_layer2, fc_num_outputs])
+    b_fc1 = bias_variable([fc_num_outputs])
 
-    h_pool2_flat = tf.reshape(h_pool2, [-1, ceildiv(game_resolution[0],4)*ceildiv(game_resolution[1],4)*features_layer2]) # [-1, 18*10*(64)]
+    h_pool2_flat = tf.reshape(h_pool2, [-1, ceildiv(game_resolution[0],4)*ceildiv(game_resolution[1],4)*features_layer2])
     h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
 
     # dropout
@@ -146,8 +161,8 @@ def create_network(session, num_available_actions):
     h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
     # readout layer
-    W_fc2 = weight_variable([fc_num_outputs, num_available_actions]) # [1024, 8]
-    b_fc2 = bias_variable([num_available_actions]) # [8]
+    W_fc2 = weight_variable([fc_num_outputs, num_available_actions])
+    b_fc2 = bias_variable([num_available_actions])
 
     q = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
 
@@ -200,8 +215,6 @@ def perform_learning_step(epoch):
     else:
         a = get_best_action(s1)
 
-    #best_action = actions[a].index(max(actions[a]))
-
     obs, reward, done, info = env.step(a)
     global observation
     observation = obs
@@ -228,20 +241,21 @@ def perform_learning_step(epoch):
         
 
 if __name__ == '__main__':
-    env = gym.make('MsPacman-v0')
+    env = gym.make(gym_game)
     #env = wrappers.Monitor(env, 'tmp/gym-results')
 
     if save_log:
-        log_file = open(log_savefile, 'w')
+        make_sure_path_exists(save_path)
+        if load_model:        
+            log_file = open(save_path+log_savefile, 'a')
+        else:
+            log_file = open(save_path+log_savefile, 'w')
 
     num_actions = env.action_space.n
-    #actions = [list(a) for a in it.product([0,1], repeat=num_actions)]
-    #print(actions)
     actions = np.zeros((num_actions, num_actions), dtype=np.int32)
     for i in range(num_actions):
         actions[i, i] = 1
     actions = actions.tolist()
-    #print(actions)
 
     memory = ReplayMemory(capacity=replay_memory_size)
 
@@ -250,9 +264,9 @@ if __name__ == '__main__':
     saver = tf.train.Saver()
 
     if load_model:
-        make_sure_path_exists(model_savefile)
-        print('Loading model from: ', model_savefile)
-        saver.restore(sess, model_savefile)
+        make_sure_path_exists(save_path+model_savefile)
+        print('Loading model from: ', save_path+model_savefile)
+        saver.restore(sess, save_path+model_savefile)
     else:
         init = tf.global_variables_initializer()
         sess.run(init)
@@ -273,7 +287,6 @@ if __name__ == '__main__':
             episode_reward = 0
             
             for learning_step in trange(learning_steps_per_epoch):
-                #env.render()
                 perform_learning_step(epoch)
                 if is_episode_finished:
                     train_scores.append(episode_reward)
@@ -303,7 +316,6 @@ if __name__ == '__main__':
                     state = preprocess(env.render('rgb_array'))
                     #env.render()
                     best_action = get_best_action(state)
-                    
                     observation, reward, is_episode_finished, info = env.step(best_action)
                     episode_reward += reward
                 test_scores.append(episode_reward)
@@ -313,18 +325,22 @@ if __name__ == '__main__':
                   'min: %.1f,' % test_scores.min(), 'max: %.1f,' % test_scores.max())
             
             if save_model:
-                make_sure_path_exists(model_savefile)
-                print('Saving the nerwork weights to:', model_savefile)
-                saver.save(sess, model_savefile)
+                make_sure_path_exists(save_path+model_savefile)
+                print('Saving the nerwork weights to:', save_path+model_savefile)
+                saver.save(sess, save_path+model_savefile)
 
             total_elapsed_time = (time() - time_start) / 60.0
             print('Total elapsed time: %.2f minutes' % total_elapsed_time)
 
-            # log to json
+            # log to file
             if save_log:
                 print(total_elapsed_time, train_episodes_finished, 
                       train_scores.min(), train_scores.mean(), train_scores.max(), 
                       test_scores.min(), test_scores.mean(), test_scores.max(), file=log_file)
+                log_file.flush()
+
+    if save_log:
+        log_file.close()
 
     env.close()
     print('======================================')
@@ -332,7 +348,7 @@ if __name__ == '__main__':
 
     raw_input('Press Enter to continue...') # in python3 use input() instead
 
-    env = gym.make('MsPacman-v0')
+    env = gym.make(gym_game)
     
     for _ in range(episodes_to_watch):
         observation = env.reset()
@@ -343,12 +359,9 @@ if __name__ == '__main__':
             env.render()
             state = preprocess(env.render('rgb_array'))
             best_action = get_best_action(state)
-            
             observation, reward, is_episode_finished, info = env.step(best_action)
             episode_reward += reward
 
         print('Total score: ', episode_reward)
 
-    if save_log:
-        log_file.close()
     #gym.upload('tmp/gym-results', api_key='YOUR_API_KEY')'''
