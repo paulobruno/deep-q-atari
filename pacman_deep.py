@@ -19,13 +19,13 @@ import gym
 
 
 # game parameters
-gym_game = 'Breakout-v0'
+gym_game = 'MsPacman-v0'
 game_resolution = (105, 80)
 img_channels = 1
 
 load_model = False
 save_model = True
-save_log = False
+save_log = True
 skip_learning = False
 
 log_savefile = 'log.txt'
@@ -35,6 +35,7 @@ if (gym_game == 'MsPacman-v0'):
     save_path = 'model_mspacman/'
 elif (gym_game == 'Breakout-v0'):
     save_path = 'model_breakout/'
+# FIXME: games below appear on screen even when env.render() is not called
 #elif (gym_game == 'MountainCar-v0'):
 #    save_path = 'model_mountain_car/'
 #elif (gym_game == 'CartPole-v0'):
@@ -56,14 +57,21 @@ fc_num_outputs = 256
 
 # NN learning settings
 batch_size = 64
-dropout_keep_prob = 0.8
 
 # training regime
-num_epochs = 1
-learning_steps_per_epoch = 700
+num_epochs = 6
+learning_steps_per_epoch = 3000
 test_episodes_per_epoch = 15
 episodes_to_watch = 5
+is_in_training = True
 
+
+# TODO: get dropout prob in a more elegant way
+def get_dropout_keep_prob():
+    if is_in_training:
+        return 0.8
+    else:
+        return 1.0
 
 # ceil of a division, source: http://stackoverflow.com/questions/14822184/is-there-a-ceiling-equivalent-of-operator-in-python
 def ceildiv(a, b):
@@ -83,6 +91,7 @@ def preprocess(image):
     return img
 
 
+# TODO: separate classes in files
 class ReplayMemory:
     def __init__(self, capacity):
         state_shape = (capacity, game_resolution[0], game_resolution[1], img_channels)
@@ -111,7 +120,7 @@ class ReplayMemory:
         i = sample(range(0, self.size), sample_size)
         return self.s1[i], self.a[i], self.s2[i], self.isterminal[i], self.r[i]
 
-
+# TODO: separate classes in files
 def create_network(session, num_available_actions):
     """ creates the network with 
     conv_relu + max_pool + conv_relu + max_pool + fc + dropout + fc """
@@ -170,20 +179,21 @@ def create_network(session, num_available_actions):
 
     loss = tf.losses.mean_squared_error(q, target_q_)
 
+    # TODO: test if softmax gives a better result
     optimizer = tf.train.RMSPropOptimizer(learning_rate)
 
     train_step = optimizer.minimize(loss)
 
     def function_learn(s1, target_q):
-        feed_dict = {s1_: s1, target_q_: target_q, keep_prob: dropout_keep_prob}
+        feed_dict = {s1_: s1, target_q_: target_q, keep_prob: get_dropout_keep_prob()}
         l, _ = session.run([loss, train_step], feed_dict=feed_dict)
         return l
 
     def function_get_q_values(state):
-        return session.run(q, feed_dict={s1_: state, keep_prob: dropout_keep_prob})
+        return session.run(q, feed_dict={s1_: state, keep_prob: get_dropout_keep_prob()})
 
     def function_get_best_action(state):
-        return session.run(best_a, feed_dict={s1_: state, keep_prob: dropout_keep_prob})
+        return session.run(best_a, feed_dict={s1_: state, keep_prob: get_dropout_keep_prob()})
 
     def function_simple_get_best_action(state):
         return function_get_best_action(state.reshape([1, game_resolution[0], game_resolution[1], 1]))[0]
@@ -282,6 +292,7 @@ if __name__ == '__main__':
             train_scores = []
 
             print('Training...')
+            is_in_training = True
             observation = env.reset()
             is_episode_finished = False
             episode_reward = 0
@@ -304,6 +315,7 @@ if __name__ == '__main__':
 
 
             print('\nTesting...')
+            is_in_training = False
             test_episode = []
             test_scores = []
 
@@ -349,6 +361,8 @@ if __name__ == '__main__':
     raw_input('Press Enter to continue...') # in python3 use input() instead
 
     env = gym.make(gym_game)
+
+    is_in_training = False
     
     for _ in range(episodes_to_watch):
         observation = env.reset()

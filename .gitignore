@@ -163,4 +163,10 @@ ui_*.h
 *.xcodeproj
 Notes.txt
 exec
-Framework
+
+# Models' checkpoints
+
+model_breakout/
+model_mspacman/
+model_mountain_car/
+model_cart_pole/
