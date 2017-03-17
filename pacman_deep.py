@@ -59,8 +59,8 @@ fc_num_outputs = 256
 batch_size = 64
 
 # training regime
-num_epochs = 6
-learning_steps_per_epoch = 3000
+num_epochs = 60
+learning_steps_per_epoch = 25000
 test_episodes_per_epoch = 15
 episodes_to_watch = 5
 is_in_training = True
@@ -179,7 +179,6 @@ def create_network(session, num_available_actions):
 
     loss = tf.losses.mean_squared_error(q, target_q_)
 
-    # TODO: test if softmax gives a better result
     optimizer = tf.train.RMSPropOptimizer(learning_rate)
 
     train_step = optimizer.minimize(loss)
@@ -221,7 +220,7 @@ def perform_learning_step(epoch):
 
     eps = exploration_rate(epoch)
     if random() <= eps:
-        a = randint(0, len(actions) - 1)
+        a = randint(0, num_actions - 1)
     else:
         a = get_best_action(s1)
 
@@ -262,15 +261,11 @@ if __name__ == '__main__':
             log_file = open(save_path+log_savefile, 'w')
 
     num_actions = env.action_space.n
-    actions = np.zeros((num_actions, num_actions), dtype=np.int32)
-    for i in range(num_actions):
-        actions[i, i] = 1
-    actions = actions.tolist()
 
     memory = ReplayMemory(capacity=replay_memory_size)
 
     sess = tf.Session()
-    learn, get_q_values, get_best_action = create_network(sess, len(actions))
+    learn, get_q_values, get_best_action = create_network(sess, num_actions)
     saver = tf.train.Saver()
 
     if load_model:
@@ -297,7 +292,7 @@ if __name__ == '__main__':
             is_episode_finished = False
             episode_reward = 0
             
-            for learning_step in trange(learning_steps_per_epoch):
+            for learning_step in range(learning_steps_per_epoch):
                 perform_learning_step(epoch)
                 if is_episode_finished:
                     train_scores.append(episode_reward)
