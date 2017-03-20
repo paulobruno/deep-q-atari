@@ -20,10 +20,10 @@ import gym
 
 # game parameters
 gym_game = 'MsPacman-v0'
-game_resolution = (105, 80)
+game_resolution = (70, 40)
 img_channels = 1
 
-load_model = False
+load_model = True
 save_model = True
 save_log = True
 skip_learning = False
@@ -57,21 +57,15 @@ fc_num_outputs = 256
 
 # NN learning settings
 batch_size = 64
+dropout_keep_prob = 0.8
 
 # training regime
-num_epochs = 60
+num_epochs = 20
 learning_steps_per_epoch = 25000
 test_episodes_per_epoch = 15
 episodes_to_watch = 5
 is_in_training = True
 
-
-# TODO: get dropout prob in a more elegant way
-def get_dropout_keep_prob():
-    if is_in_training:
-        return 0.8
-    else:
-        return 1.0
 
 # ceil of a division, source: http://stackoverflow.com/questions/14822184/is-there-a-ceiling-equivalent-of-operator-in-python
 def ceildiv(a, b):
@@ -184,15 +178,15 @@ def create_network(session, num_available_actions):
     train_step = optimizer.minimize(loss)
 
     def function_learn(s1, target_q):
-        feed_dict = {s1_: s1, target_q_: target_q, keep_prob: get_dropout_keep_prob()}
+        feed_dict = {s1_: s1, target_q_: target_q, keep_prob: dropout_keep_prob}
         l, _ = session.run([loss, train_step], feed_dict=feed_dict)
         return l
 
     def function_get_q_values(state):
-        return session.run(q, feed_dict={s1_: state, keep_prob: get_dropout_keep_prob()})
+        return session.run(q, feed_dict={s1_: state, keep_prob: dropout_keep_prob})
 
     def function_get_best_action(state):
-        return session.run(best_a, feed_dict={s1_: state, keep_prob: get_dropout_keep_prob()})
+        return session.run(best_a, feed_dict={s1_: state, keep_prob: dropout_keep_prob})
 
     def function_simple_get_best_action(state):
         return function_get_best_action(state.reshape([1, game_resolution[0], game_resolution[1], 1]))[0]
@@ -208,13 +202,16 @@ def perform_learning_step(epoch):
         const_eps_epochs = 0.1 * num_epochs
         eps_decay_epochs = 0.6 * num_epochs
 
-        if epoch < const_eps_epochs:
-            return start_eps
-        elif epoch < eps_decay_epochs:
-            return start_eps - (epoch - const_eps_epochs) / \
-                               (eps_decay_epochs - const_eps_epochs) * (start_eps - end_eps)
-        else:
+        if load_model:
             return end_eps
+        else:
+            if epoch < const_eps_epochs:
+                return start_eps
+            elif epoch < eps_decay_epochs:
+                return start_eps - (epoch - const_eps_epochs) / \
+                                   (eps_decay_epochs - const_eps_epochs) * (start_eps - end_eps)
+            else:
+                return end_eps
 
     s1 = preprocess(env.render('rgb_array'))
 
@@ -289,10 +286,10 @@ if __name__ == '__main__':
             print('Training...')
             is_in_training = True
             observation = env.reset()
-            is_episode_finished = False
+            dropout_keep_prob = 0.8
             episode_reward = 0
             
-            for learning_step in range(learning_steps_per_epoch):
+            for learning_step in trange(learning_steps_per_epoch):
                 perform_learning_step(epoch)
                 if is_episode_finished:
                     train_scores.append(episode_reward)
@@ -310,7 +307,7 @@ if __name__ == '__main__':
 
 
             print('\nTesting...')
-            is_in_training = False
+            dropout_keep_prob = 1.0
             test_episode = []
             test_scores = []
 
@@ -357,7 +354,7 @@ if __name__ == '__main__':
 
     env = gym.make(gym_game)
 
-    is_in_training = False
+    dropout_keep_prob = 1.0
     
     for _ in range(episodes_to_watch):
         observation = env.reset()
