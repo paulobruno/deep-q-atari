@@ -24,10 +24,17 @@ game_resolution = (30, 45)
 img_channels = 1
 frame_repeat = 12
 
-load_model = True
-save_model = False
-save_log = False
-skip_learning = True
+learn_model = True
+load_model = False
+
+if (learn_model):
+    save_model = True
+    save_log = True
+    skip_learning = False
+else:
+    save_model = False
+    save_log = False
+    skip_learning = True
 
 log_savefile = 'log.txt'
 model_savefile = 'model.ckpt'
