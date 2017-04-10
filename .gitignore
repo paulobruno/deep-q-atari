@@ -42,6 +42,9 @@
 # Java class files
 *.class
 
+# Python class files
+*.pyc
+
 # Generated files
 bin/
 gen/
