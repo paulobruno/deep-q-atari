@@ -13,14 +13,9 @@ learning_rate = 0.00025
 dropout_keep_prob = 0.8
 
 
-# ceil of a division, source: http://stackoverflow.com/questions/14822184/is-there-a-ceiling-equivalent-of-operator-in-python
-def ceildiv(a, b):
-    return -(-a // b)
-
-
 def create_network(session, num_available_actions, game_resolution, img_channels):
     """ creates the network with 
-    conv_relu + max_pool + conv_relu + max_pool + fc + dropout + fc """
+    conv_relu + conv_relu + fc + dropout + fc """
 
     def weight_variable(shape):
         initial = tf.truncated_normal(shape, stddev=0.1)
@@ -33,9 +28,6 @@ def create_network(session, num_available_actions, game_resolution, img_channels
     def conv2d(x, W):
         return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
 
-    def max_pool_2x2(x):
-        return tf.nn.max_pool(x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
-
 
     s1_ = tf.placeholder(tf.float32, [None] + list(game_resolution) + [img_channels], name='State')
 
@@ -46,21 +38,19 @@ def create_network(session, num_available_actions, game_resolution, img_channels
     b_conv1 = bias_variable([features_layer1])
 
     h_conv1 = tf.nn.relu(conv2d(s1_, W_conv1) + b_conv1)
-    h_pool1 = max_pool_2x2(h_conv1)
 
     # second convolutional layer
     W_conv2 = weight_variable([conv_height, conv_width, features_layer1, features_layer2])
     b_conv2 = bias_variable([features_layer2]) 
 
-    h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
-    h_pool2 = max_pool_2x2(h_conv2)
+    h_conv2 = tf.nn.relu(conv2d(h_conv1, W_conv2) + b_conv2)
 
     # densely connected layer
-    W_fc1 = weight_variable([ceildiv(game_resolution[0],4)*ceildiv(game_resolution[1],4)*features_layer2, fc_num_outputs])
+    W_fc1 = weight_variable([game_resolution[0]*game_resolution[1]*features_layer2, fc_num_outputs])
     b_fc1 = bias_variable([fc_num_outputs])
 
-    h_pool2_flat = tf.reshape(h_pool2, [-1, ceildiv(game_resolution[0],4)*ceildiv(game_resolution[1],4)*features_layer2])
-    h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
+    h_conv2_flat = tf.reshape(h_conv2, [-1, game_resolution[0]*game_resolution[1]*features_layer2])
+    h_fc1 = tf.nn.relu(tf.matmul(h_conv2_flat, W_fc1) + b_fc1)
 
     # dropout
     keep_prob = tf.placeholder(tf.float32)
