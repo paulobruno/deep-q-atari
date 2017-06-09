@@ -103,7 +103,7 @@ def perform_learning_step(epoch):
     if random() <= eps:
         a = randint(0, num_actions - 1)
     else:
-        a = get_best_action(s1)
+        a = get_best_action(s1, dropout_keep_prob)
 
     obs, reward, done, info = env.step(a)
     global observation
@@ -122,12 +122,12 @@ def perform_learning_step(epoch):
     if memory.size > batch_size:
         s1, a, s2, isterminal, r = memory.get_sample(batch_size)
 
-        q2 = np.max(get_q_values(s2), axis=1)
-        target_q = get_q_values(s1)
+        q2 = np.max(get_q_values(s2, dropout_keep_prob), axis=1)
+        target_q = get_q_values(s1, dropout_keep_prob)
 
         target_q[np.arange(target_q.shape[0]), a] = r + discount_factor * (1-isterminal) * q2
 
-        learn(s1, target_q)
+        learn(s1, target_q, dropout_keep_prob)
         
 
 if __name__ == '__main__':
@@ -202,7 +202,7 @@ if __name__ == '__main__':
                 while not is_episode_finished:
                     state = preprocess(env.render('rgb_array'))
                     #env.render()
-                    best_action = get_best_action(state)
+                    best_action = get_best_action(state, dropout_keep_prob)
                     observation, reward, is_episode_finished, info = env.step(best_action)
                     episode_reward += reward
                 test_scores.append(episode_reward)
@@ -247,7 +247,7 @@ if __name__ == '__main__':
         while not is_episode_finished:
             env.render()
             state = preprocess(env.render('rgb_array'))
-            best_action = get_best_action(state)
+            best_action = get_best_action(state, dropout_keep_prob)
             observation, reward, is_episode_finished, info = env.step(best_action)
             episode_reward += reward
 

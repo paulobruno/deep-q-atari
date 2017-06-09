@@ -70,18 +70,18 @@ def create_network(session, num_available_actions, game_resolution, img_channels
 
     train_step = optimizer.minimize(loss)
 
-    def function_learn(s1, target_q):
+    def function_learn(s1, target_q, dropout_keep_prob):
         feed_dict = {s1_: s1, target_q_: target_q, keep_prob: dropout_keep_prob}
         l, _ = session.run([loss, train_step], feed_dict=feed_dict)
         return l
 
-    def function_get_q_values(state):
+    def function_get_q_values(state, dropout_keep_prob):
         return session.run(q, feed_dict={s1_: state, keep_prob: dropout_keep_prob})
 
-    def function_get_best_action(state):
+    def function_get_best_action(state, dropout_keep_prob):
         return session.run(best_a, feed_dict={s1_: state, keep_prob: dropout_keep_prob})
 
-    def function_simple_get_best_action(state):
-        return function_get_best_action(state.reshape([1, game_resolution[0], game_resolution[1], 1]))[0]
+    def function_simple_get_best_action(state, dropout_keep_prob):
+        return function_get_best_action(state.reshape([1, game_resolution[0], game_resolution[1], 1]), dropout_keep_prob)[0]
     
     return function_learn, function_get_q_values, function_simple_get_best_action
